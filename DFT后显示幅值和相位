@@ -1,1 +1,61 @@
+#include <opencv2/opencv.hpp>
+#include <iostream>
+using namespace std;
+using namespace cv;
+
+int main(void)
+{
+	char* file = "lena.bmp";
+	Mat picture = imread(file, IMREAD_GRAYSCALE);//强行转换为灰度图像
+	if (!picture.data)
+	{
+		printf("\nFile %s read error\n", file);
+		system("pause");
+		return 0;
+	}
+	else
+		printf("\nFile %s read successfully\n", file);
+	
+	Mat img,dftofImg,magofDft,magofDft1;
+	picture.convertTo(img, CV_32F); //转换成浮点型
+	//planes是矩阵数组，plane[0]存放图像，代表实部，planes[1]为0，虚部
+	Mat planes[] = { Mat_<float>(img),Mat::zeros(img.size(),CV_32F) };
+	//将planes融合成2通道的数组dftofImg,暂存变换前的数据；
+	merge(planes, 2, dftofImg);
+	//进行离散傅里叶变换
+	dft(dftofImg, dftofImg);
+	//将结果放回到planes，即planes[0]放DFT结果的实部，planes[1]放虚部
+	split(dftofImg, planes);
+	//取幅度
+	magnitude(planes[0], planes[1], magofDft);
+	magofDft += Scalar::all(1);//防止0取对数
+	//取对数
+	log(magofDft, magofDft);
+	//规范化到0 - 255
+	normalize(magofDft, magofDft, 0, 255, CV_MINMAX,CV_8UC1);//归一化像素值[0,255] 
+
+	//下面10行重新安排DFT幅度谱的4个象限，相当于Matlab的fftshift
+	int cx = magofDft.cols / 2;
+	int cy = magofDft.rows / 2;
+	magofDft.copyTo(magofDft1);
+	Mat tmp;
+	Mat q0(magofDft1, Rect(0, 0, cx, cy));//用ROI初始化q0，q1，q2，q3
+	Mat q1(magofDft1, Rect(cx, 0, cx, cy));
+	Mat q2(magofDft1, Rect(0, cy, cx, cy));
+	Mat q3(magofDft1, Rect(cx, cy, cx, cy));
+	q0.copyTo(tmp);	q3.copyTo(q0);	tmp.copyTo(q3);
+	q1.copyTo(tmp);	q2.copyTo(q1);	tmp.copyTo(q2);
+	
+	char* original = "原图";
+	char* transform = "DFT的幅度";
+	char* transform1 = "DFT的幅度(零频中心化)";
+	namedWindow(original, 0);
+	namedWindow(transform, 0);
+	namedWindow(transform1, 0);
+	imshow(original, picture);
+	imshow(transform, magofDft);
+	imshow(transform1, magofDft1);
+	waitKey();
+	return 0;
+}
 
